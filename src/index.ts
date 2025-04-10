@@ -90,22 +90,36 @@ app.get("/utilisateurs/:id", (req: Request, res: Response): void => {
 })
 
 // UPDATE - Mettre à jour un utilisateur
-app.put("/utilisateurs/:id", validateUserInput, async (req: Request, res: Response): Promise<void> => {
+app.put("/utilisateurs/:id", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nomutilisateur, motdepasse, email } = req.body as Omit<Utilisateur, "id">
-    const motdepasse_hashed: string = await argon2.hash(motdepasse)
+    const { nomutilisateur, motdepasse, email } = req.body as Partial<Omit<Utilisateur, "id">>
+
+    if (!nomutilisateur && !motdepasse && !email) {
+      res.status(400).json({ erreur: "Au moins un champ doit être fourni (nomutilisateur, motdepasse, ou email)" })
+      return
+    }
+
+    const updates: Partial<Omit<Utilisateur, "id">> = {
+      ...(nomutilisateur && { nomutilisateur: nomutilisateur }),
+      ...(motdepasse && { motdepasse: await argon2.hash(motdepasse) }),
+      ...(email && { email: email }),
+    }
 
     const requete_preparee: SQLiteDatabase.Statement<string[], unknown> = bdd.prepare(`
       UPDATE utilisateurs 
-      SET nomutilisateur = ?, motdepasse = ?, email = ?
+      SET ${Object.keys(updates)
+        .map((key) => `${key} = ?`)
+        .join(", ")}
       WHERE id = ?
     `)
-    const result: SQLiteDatabase.RunResult = requete_preparee.run(nomutilisateur, motdepasse_hashed, email, req.params.id)
+
+    const result: SQLiteDatabase.RunResult = requete_preparee.run(...Object.values(updates), req.params.id)
 
     if (result.changes === 0) {
       res.status(404).json({ erreur: "Utilisateur non trouvé" })
       return
     }
+
     res.status(200).json({ message: "Utilisateur mis à jour avec succès" })
   } catch {
     res.status(400).json({ erreur: "Erreur lors de la mise à jour de l'utilisateur" })
@@ -125,6 +139,39 @@ app.delete("/utilisateurs/:id", (req: Request, res: Response): void => {
     res.status(200).json({ message: "Utilisateur supprimé avec succès" })
   } catch {
     res.status(500).json({ erreur: "Erreur lors de la suppression de l'utilisateur" })
+  }
+})
+
+// BONUS - Vérifier le mot de passe
+app.post("/verifier-motdepasse", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { nomutilisateur, motdepasse } = req.body
+
+    // Vérification des champs requis
+    if (!nomutilisateur || !motdepasse) {
+      res.status(400).json({ erreur: "Nom d'utilisateur et mot de passe requis" })
+      return
+    }
+
+    // Récupérer l'utilisateur depuis la base de données
+    const requete_preparee: SQLiteDatabase.Statement<string[], unknown> = bdd.prepare("SELECT motdepasse FROM utilisateurs WHERE nomutilisateur = ?")
+    const utilisateur: { motdepasse: string } | undefined = requete_preparee.get(nomutilisateur) as { motdepasse: string } | undefined
+
+    if (!utilisateur) {
+      res.status(404).json({ erreur: "Utilisateur non trouvé" })
+      return
+    }
+
+    // Vérifier si le mot de passe correspond
+    const motdepasseValide: boolean = await argon2.verify(utilisateur.motdepasse, motdepasse)
+
+    if (motdepasseValide) {
+      res.status(200).json({ message: "Mot de passe correct !" })
+    } else {
+      res.status(401).json({ erreur: "Mot de passe incorrect, désolé" })
+    }
+  } catch {
+    res.status(500).json({ erreur: "Erreur lors de la vérification du mot de passe" })
   }
 })
 
