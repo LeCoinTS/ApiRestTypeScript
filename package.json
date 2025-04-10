@@ -1,0 +1,26 @@
+{
+  "name": "apiresttypescript",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint . --ext .ts",
+    "start": "tsc && node ./dist/index.js"
+  },
+  "keywords": [],
+  "author": "Jérôme TOMSKI (https://lecoints.fr/)",
+  "license": "BY-NC-ND 4.0 CC License",
+  "description": "Exemple d'API REST (TypeScript)",
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "better-sqlite3": "^11.9.1",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/argon2": "^0.14.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.14.0",
+    "typescript": "^5.8.3"
+  }
+}
