@@ -10,7 +10,7 @@ const PORT = 3000
 app.use(express.json())
 
 // Interface utilisateur
-interface User {
+interface Utilisateur {
   id: number
   nomutilisateur: string
   motdepasse: string
@@ -29,7 +29,7 @@ bdd.exec(`
 
 // Middleware de validation basique
 const validateUserInput = (req: Request, res: Response, next: NextFunction): void => {
-  const { nomutilisateur, motdepasse, email } = req.body
+  const { nomutilisateur, motdepasse, email } = req.body as Partial<Utilisateur>
   if (!nomutilisateur || !motdepasse || !email) {
     res.status(400).json({ error: "Tous les champs sont requis" })
     return
@@ -40,17 +40,19 @@ const validateUserInput = (req: Request, res: Response, next: NextFunction): voi
 // CREATE - Créer un nouvel utilisateur
 app.post("/utilisateurs", validateUserInput, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nomutilisateur, motdepasse, email } = req.body
+    const { nomutilisateur, motdepasse, email } = req.body as Omit<Utilisateur, "id">
     const motdepasse_hashed = await argon2.hash(motdepasse)
 
     const stmt = bdd.prepare("INSERT INTO utilisateurs (nomutilisateur, motdepasse, email) VALUES (?, ?, ?)")
     const result = stmt.run(nomutilisateur, motdepasse_hashed, email)
 
-    res.status(201).json({
-      id: result.lastInsertRowid,
+    const nouvelUtilisateur: Omit<Utilisateur, "motdepasse"> = {
+      id: Number(result.lastInsertRowid),
       nomutilisateur,
       email,
-    })
+    }
+
+    res.status(201).json(nouvelUtilisateur)
   } catch (error) {
     res.status(400).json({ error: "Erreur lors de la création de l'utilisateur" })
   }
@@ -60,7 +62,7 @@ app.post("/utilisateurs", validateUserInput, async (req: Request, res: Response)
 app.get("/utilisateurs", (req: Request, res: Response): void => {
   try {
     const stmt = bdd.prepare("SELECT id, nomutilisateur, email FROM utilisateurs")
-    const utilisateurs = stmt.all()
+    const utilisateurs = stmt.all() as Omit<Utilisateur, "motdepasse">[]
     res.json(utilisateurs)
   } catch (error) {
     res.status(500).json({ error: "Erreur lors de la récupération des utilisateurs" })
@@ -71,7 +73,7 @@ app.get("/utilisateurs", (req: Request, res: Response): void => {
 app.get("/utilisateurs/:id", (req: Request, res: Response): void => {
   try {
     const stmt = bdd.prepare("SELECT id, nomutilisateur, email FROM utilisateurs WHERE id = ?")
-    const user = stmt.get(req.params.id)
+    const user = stmt.get(req.params.id) as Omit<Utilisateur, "motdepasse"> | undefined
 
     if (!user) {
       res.status(404).json({ error: "Utilisateur non trouvé" })
@@ -86,7 +88,7 @@ app.get("/utilisateurs/:id", (req: Request, res: Response): void => {
 // UPDATE - Mettre à jour un utilisateur
 app.put("/utilisateurs/:id", validateUserInput, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nomutilisateur, motdepasse, email } = req.body
+    const { nomutilisateur, motdepasse, email } = req.body as Omit<Utilisateur, "id">
     const motdepasse_hashed = await argon2.hash(motdepasse)
 
     const stmt = bdd.prepare(`
